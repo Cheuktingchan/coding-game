@@ -2,11 +2,6 @@ import java.util.*;
 import java.io.*;
 import java.math.*;
 
-/**
- * Auto-generated code below aims at helping you parse
- * the standard input according to the problem statement.
- **/
-
 class Hand {
     private ArrayList<Card> hand;
 
@@ -121,12 +116,14 @@ class BasicStrategy implements Strategy {
     ArrayList<SummonAction> summonActions = new ArrayList<>();
 
     public ArrayList<Action> chooseDrafts(GameState gameState) {
+        // Just pick first one
         draftActions.add(new PassAction());
         return draftActions;
     }
 
     public ArrayList<SummonAction> chooseSummons(GameState gameState) {
-        if (Board.opponentBoard.size() != 6) {
+        // Summon greedily
+        if (gameState.opponentBoard.size() != 6) {
             for (int i = 0; i < gameState.playerHand.size(); i++) {
                 Card card = gameState.playerHand.getCard(i);
 
@@ -145,13 +142,13 @@ class BasicStrategy implements Strategy {
         int targetId = -1;
 
         // Attack guards first strategy
-        int opponentGuardIndex = Board.opponentGuardIndex();
+        int opponentGuardIndex = gameState.opponentGuardIndex();
         if (opponentGuardIndex != -1) {
-            targetId = Board.getOpponentBoardCard(opponentGuardIndex).instanceId;
+            targetId = gameState.getOpponentBoardCard(opponentGuardIndex).instanceId;
         }
 
-        for (int i = 0; i < Board.playerBoard.size(); i++) {
-            Card card = Board.getPlayerBoardCard(i);
+        for (int i = 0; i < gameState.playerBoard.size(); i++) {
+            Card card = gameState.getPlayerBoardCard(i);
             attackActions.add(new AttackAction(card.instanceId, targetId));
         }
 
@@ -249,43 +246,24 @@ class GameState {
     
         return gameState;
     }
-}
 
-public class Board {
-    static ArrayList<Card> playerBoard = new ArrayList<Card>();
-    static ArrayList<Card>  opponentBoard = new ArrayList<Card>();
-
-    public static void resetBoard() {
-        playerBoard = new ArrayList<Card>();
-        opponentBoard = new ArrayList<Card>();
-    }
-
-    public static void addPlayerCard(Card card) {
-        playerBoard.add(card);
-    }
-
-    public static void addOpponentCard(Card card) {
-        opponentBoard.add(card);
-    }
-
-    public static Card getPlayerBoardCard(int index) {
+    public Card getPlayerBoardCard(int index) {
         return playerBoard.get(index);
     }
 
-    public static Card getOpponentBoardCard(int index) {
+    public Card getOpponentBoardCard(int index) {
         return opponentBoard.get(index);
     }
 
-    public static int opponentGuardIndex(){
-        int guardIndex = -1;
+    public int opponentGuardIndex() {
         for (int i = 0; i < opponentBoard.size(); i++) {
             if (opponentBoard.get(i).abilities.contains("G")) {
-                guardIndex = i;
+                return i;
             }
         }
-
-        return guardIndex;
+        return -1;
     }
+
 }
 
 class Player {
@@ -300,7 +278,6 @@ class Player {
         // game loop
         while (true) {
             turnNum++;
-            Board.resetBoard();
             if (turnNum == 31) {
                 isDraftTurn = false;
             }
@@ -322,8 +299,8 @@ class Player {
                 }
             }
 
+            // Output the action for the turn
             String output = "";
-            
             if (actions.size() == 1) {
                 output += actions.get(0).toString();
             } else {
@@ -332,7 +309,6 @@ class Player {
                     output += ";";
                 }
             }
-
             System.out.println(output);
         }
     }
