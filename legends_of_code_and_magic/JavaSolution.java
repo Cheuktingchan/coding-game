@@ -1,6 +1,7 @@
 import java.util.*;
 import java.io.*;
 import java.math.*;
+import java.util.stream.Collectors;
 
 class Hand {
     private ArrayList<Card> hand;
@@ -70,7 +71,7 @@ class SummonAction implements Action {
 
 class AttackAction implements Action {
     private final int attackerId;
-    int targetId;
+    private final int targetId;
 
     public AttackAction(int attackerId, int targetId) {
         this.attackerId = attackerId;
@@ -123,12 +124,12 @@ class BasicStrategy implements Strategy {
 
     public ArrayList<SummonAction> chooseSummons(GameState gameState) {
         // Summon greedily
-        if (gameState.opponentBoard.size() != 6) {
+        if (gameState.playerBoard.size() != 6) {
             for (int i = 0; i < gameState.playerHand.size(); i++) {
                 Card card = gameState.playerHand.getCard(i);
 
-                if (card.cost <= gameState.playerMana) {
-                    gameState.playerMana += -card.cost;
+                if (card.cost <= gameState.getPlayerMana()) {
+                    gameState.setPlayerMana(gameState.getPlayerMana() - card.cost);
                     summonActions.add(new SummonAction(card.instanceId));
                 }
             }
@@ -139,13 +140,10 @@ class BasicStrategy implements Strategy {
 
     public ArrayList<AttackAction> chooseAttacks(GameState gameState) {
         // By default attack face
-        int targetId = -1;
-
         // Attack guards first strategy
-        int opponentGuardIndex = gameState.opponentGuardIndex();
-        if (opponentGuardIndex != -1) {
-            targetId = gameState.getOpponentBoardCard(opponentGuardIndex).instanceId;
-        }
+        int targetId = gameState.opponentGuardCard()
+            .map(target -> target.instanceId)
+            .orElse(-1);
 
         for (int i = 0; i < gameState.playerBoard.size(); i++) {
             Card card = gameState.getPlayerBoardCard(i);
@@ -158,18 +156,18 @@ class BasicStrategy implements Strategy {
 }
 
 class GameState {
-    private final int playerHealth;
-    private final int playerMana;
-    private final int countPlayerDeck;
-    private final int playerRune;
-    private final int countPlayerDrawn;
+    private int playerHealth;
+    private int playerMana;
+    private int countPlayerDeck;
+    private int playerRune;
+    private int countPlayerDrawn;
 
-    private final int opponentHealth;
-    private final int opponentMana;
-    private final int opponentDeck;
-    private final int opponentRune;
-    private final int opponentDraw;
-    private final int opponentHand;
+    private int opponentHealth;
+    private int opponentMana;
+    private int opponentDeck;
+    private int opponentRune;
+    private int opponentDraw;
+    private int opponentHand;
 
     ArrayList<String> opponentActions;
 
@@ -184,9 +182,7 @@ class GameState {
         this.opponentActions = new ArrayList<>();
     }
 
-    public static GameState readGameState(Scanner in, Boolean isDraftTurn) {
-        GameState gameState = new GameState();
-    
+    public static void readPlayerStats(Scanner in, GameState gameState) {
         gameState.playerHealth = in.nextInt();
         gameState.playerMana = in.nextInt();
         gameState.countPlayerDeck = in.nextInt();
@@ -198,7 +194,9 @@ class GameState {
         gameState.opponentDeck = in.nextInt();
         gameState.opponentRune = in.nextInt();
         gameState.opponentDraw = in.nextInt();
-    
+    }
+
+    public static void readOpponentActions(Scanner in, GameState gameState) {
         gameState.opponentHand = in.nextInt();
         int numOpponentActions = in.nextInt();
     
@@ -211,7 +209,9 @@ class GameState {
                 gameState.opponentActions.add(in.nextLine());
             }
         }
-    
+    }
+
+    public static void initialiseCards(Scanner in, GameState gameState, Boolean isDraftTurn) {
         int cardCount = in.nextInt();
     
         for (int i = 0; i < cardCount; i++) {
@@ -243,7 +243,23 @@ class GameState {
                 }
             }
         }
+    }
+
+    public int getPlayerMana() {
+        return this.playerMana;
+    }
+
+    public void setPlayerMana(int mana) {
+        this.playerMana = mana;
+    }
+
+    public static GameState readGameState(Scanner in, Boolean isDraftTurn) {
+        GameState gameState = new GameState();
     
+        readPlayerStats(in, gameState);
+        readOpponentActions(in, gameState);
+        initialiseCards(in, gameState, isDraftTurn);
+
         return gameState;
     }
 
@@ -255,20 +271,15 @@ class GameState {
         return opponentBoard.get(index);
     }
 
-    public int opponentGuardIndex() {
-        for (int i = 0; i < opponentBoard.size(); i++) {
-            if (opponentBoard.get(i).abilities.contains("G")) {
-                return i;
-            }
-        }
-        return -1;
+    public Optional<Card> opponentGuardCard() {
+        return opponentBoard.stream().filter(card -> card.abilities.contains("G")).findFirst();
     }
 
 }
 
 class Player {
     private static Boolean isDraftTurn = true;
-    private static GameState gameState;
+    private static GameState gameState = new GameState();
 
     public static void main(String args[]) {
         int turnNum = 0;
@@ -282,10 +293,10 @@ class Player {
                 isDraftTurn = false;
             }
 
-            gameState = GameState.readGameState(in, isDraftTurn);
+            gameState.readGameState(in, isDraftTurn);
             
             ArrayList<Action> actions = new ArrayList<Action>();
-            BasicStrategy basicStrategy = new BasicStrategy();
+            Strategy basicStrategy = new BasicStrategy();
 
             if (isDraftTurn) { // Draft Strategies
                 actions.addAll(basicStrategy.chooseDrafts(gameState));
@@ -299,16 +310,9 @@ class Player {
                 }
             }
 
-            // Output the action for the turn
-            String output = "";
-            if (actions.size() == 1) {
-                output += actions.get(0).toString();
-            } else {
-                for (int i = 0; i < actions.size(); i++) {
-                    output += actions.get(i).toString();
-                    output += ";";
-                }
-            }
+            String output = actions.stream()
+                .map(Action::toString)
+                .collect(Collectors.joining(";"));
             System.out.println(output);
         }
     }
